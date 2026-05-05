@@ -1,0 +1,85 @@
+:root {
+  /* ChatGPT-like dark palette */
+  --chat-bg: #212121;
+  --chat-text: #ececec;
+  --chat-text-muted: #b4b4b4;
+  --chat-text-faint: #8e8e8e;
+  --chat-border-subtle: #ffffff14;
+  --chat-assistant-bubble: #2f2f2f;
+  --chat-user-bubble: #2f2f2f;
+  --chat-user-text: #ececec;
+  --chat-avatar-bg: #10a37f;
+  --chat-avatar-fg: #fff;
+  --chat-composer-bg: #2f2f2f;
+  --chat-composer-border: #565869;
+  --chat-composer-shadow: 0 0 0 1px #0000000a inset;
+  --chat-placeholder: #8e8e8e;
+  --chat-send-bg: #fff;
+  --chat-send-fg: #212121;
+  --chat-md-link: #7dd3fc;
+  --chat-md-inline-code-bg: #3d3d3d;
+  --chat-md-table-head: #3a3a3a;
+  --chat-md-pre-bg: #0d1117;
+
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color-scheme: dark;
+  color: var(--chat-text);
+  background: var(--chat-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --chat-bg: #ffffff;
+    --chat-text: #0d0d0d;
+    --chat-text-muted: #676767;
+    --chat-text-faint: #8e8e8e;
+    --chat-border-subtle: #00000014;
+    --chat-assistant-bubble: #f4f4f4;
+    --chat-user-bubble: #f4f4f4;
+    --chat-user-text: #0d0d0d;
+    --chat-avatar-bg: #19c37d;
+    --chat-avatar-fg: #fff;
+    --chat-composer-bg: #fff;
+    --chat-composer-border: #d9d9e3;
+    --chat-composer-shadow: 0 2px 12px #0000000d;
+    --chat-placeholder: #8e8e8e;
+    --chat-send-bg: #0d0d0d;
+    --chat-send-fg: #fff;
+    --chat-md-link: #0969da;
+    --chat-md-inline-code-bg: #ececec;
+    --chat-md-table-head: #ececec;
+    --chat-md-pre-bg: #f6f8fa;
+    color-scheme: light;
+  }
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  min-height: 100svh;
+  text-align: left;
+  border: none;
+  display: block;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  background: var(--chat-bg);
+}

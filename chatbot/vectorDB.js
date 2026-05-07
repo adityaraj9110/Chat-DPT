@@ -29,6 +29,5 @@ export async function createEmbeddingAndVectorSearch({query}){
     return result;
 }
 
-await pineconeUpload();
 
 

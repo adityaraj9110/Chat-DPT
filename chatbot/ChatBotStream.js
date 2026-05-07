@@ -1,6 +1,5 @@
 import Groq from "groq-sdk";
 import  {tavily}  from "@tavily/core";
-import { createEmbedding } from "./rag.js";
 import { createEmbeddingAndVectorSearch } from "./vectorDB.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -36,7 +35,7 @@ const baseMessage =  [
 ]
 
 
-export async function getGroqChatCompletionServerSide(messages) {
+export async function getGroqChatCompletionServerSideStreamData(messages, onEvent) {
   const newMessages = [...baseMessage, ...messages];
 
   // Preventing infinite loop
@@ -46,21 +45,68 @@ export async function getGroqChatCompletionServerSide(messages) {
   while(true){
     count++;
     if(count === maxIterations){
-      return "I'm sorry, I'm unable to answer your question. Please try again later.";
+      if(onEvent) onEvent("error", { message: "I'm sorry, I'm unable to answer your question. Please try again later." });
+      return;
     }
     const chatCompletion = await getGroqChatCompletion(newMessages);
-    // Print the completion returned by the LLM.
-    // when stream is off
-    const tool_calls = chatCompletion.choices.at(-1).message.tool_calls;
-    newMessages.push(chatCompletion.choices.at(-1).message);
-    if(!tool_calls){
-      return chatCompletion.choices.at(-1).message.content;
+
+    let content = "";
+    let tool_calls = [];
+    let reasoning = "";
+
+    for await (const chunk of chatCompletion) {
+      const delta = chunk.choices[0]?.delta || {};
+      
+      if (delta.reasoning) {
+        if(onEvent) onEvent("thinking", { content: delta.reasoning });
+        reasoning += delta.reasoning;
+      }
+      
+      if (delta.content) {
+        content += delta.content;
+        if(onEvent) onEvent("data", { content: delta.content });
+      }
+
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const index = tc.index;
+          const functionName = tc.function.name;
+          const functionId = tc.id;
+          const functionArguments = tc.function?.arguments;
+          if (!tool_calls[index]) {
+            tool_calls[index] = {
+              id: functionId,
+              type: "function",
+              function: { name: functionName || "", arguments: "" }
+            };
+          }
+          if(functionArguments){
+            tool_calls[index].function.arguments += functionArguments;
+          }
+        }
+      }
     }
+    if(tool_calls.length === 0){
+      return; // finished
+    }
+
+    // Filter out empty tool calls if any
+    tool_calls = tool_calls.filter(Boolean);
+
+
+    newMessages.push({
+      role: "assistant",
+      reasoning: reasoning || null,
+      tool_calls: tool_calls
+    });
 
     for(const tool_call of tool_calls){
       const functionName= tool_call.function.name;
       const functionArguments = tool_call.function.arguments;
       const funtionId = tool_call.id;
+      
+      if(onEvent) onEvent("thinking", { content: `\n[Using tool: ${functionName}]\n` });
+
       if(functionName === "webSearch"){
         const result = await webSearch(JSON.parse(functionArguments));
         newMessages.push({
@@ -149,6 +195,7 @@ export async function getGroqChatCompletion(messages) {
     ],
     tool_choice:"auto",
     temperature: 0.7,
+    stream:true
   });
 }
 

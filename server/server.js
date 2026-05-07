@@ -1,5 +1,5 @@
 import express from "express";
-import {  getGroqChatCompletionServerSide } from "../chatbot/ChatBot.js";
+import { getGroqChatCompletionServerSideStreamData } from "../chatbot/ChatBotStream.js";
 
 const app = express();
 
@@ -17,11 +17,24 @@ app.use((req, res, next) => {
 
 app.post("/chat", async (req, res) => {
   const messages = req.body.messages;
+  
+  // Set headers for Server-Sent Events (SSE)
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  // Callback to send events to the client
+  const onEvent = (eventName, data) => {
+    res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
   try {
-    const result = await getGroqChatCompletionServerSide(messages);
-    res.json({ message: result });
+    // Pass the callback to the chatbot logic
+    await getGroqChatCompletionServerSideStreamData(messages, onEvent);
+    res.end(); // Close the stream when done
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    onEvent("error", { message: error.message });
+    res.end();
   }
 });
 

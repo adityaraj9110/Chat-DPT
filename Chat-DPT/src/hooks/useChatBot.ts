@@ -28,7 +28,8 @@ export type UseChatBotOptions = {
 async function postChat(
   url: string,
   payload: ChatTurnForApi[],
-): Promise<string> {
+  onChunk: (text: string) => void,
+): Promise<void> {
   const response = await fetch(url, {
     method: 'POST',
     body: JSON.stringify({ messages: payload }),
@@ -37,8 +38,52 @@ async function postChat(
   if (!response.ok) {
     throw new Error(`Chat request failed: ${response.status}`)
   }
-  const data = (await response.json()) as { message?: string }
-  return data.message ?? ''
+
+  if (!response.body) {
+    throw new Error('No response body')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+
+    let boundary = buffer.indexOf('\n\n')
+    while (boundary !== -1) {
+      const chunk = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+
+      const lines = chunk.split('\n')
+      let eventType = 'message'
+      let dataStr = ''
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim()
+        } else if (line.startsWith('data: ')) {
+          dataStr = line.slice(6).trim()
+        }
+      }
+
+      if (dataStr) {
+        try {
+          const data = JSON.parse(dataStr)
+          if (data.content) {
+            onChunk(data.content)
+          }
+        } catch (e) {
+          console.error('Failed to parse SSE data', dataStr, e)
+        }
+      }
+
+      boundary = buffer.indexOf('\n\n')
+    }
+  }
 }
 
 export function useChatBot(options?: UseChatBotOptions) {
@@ -79,35 +124,52 @@ export function useChatBot(options?: UseChatBotOptions) {
       role: 'user',
       content: text,
     }
+    const assistantMessageId = createId()
+
     const conversationForApi: ChatTurnForApi[] = [
       ...messagesRef.current.map(({ role, content }) => ({ role, content })),
       { role: 'user', content: text },
     ]
 
     setInput('')
-    setMessages((prev) => [...prev, userMessage])
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+      },
+    ])
 
     setIsThinking(true)
     try {
-      const assistantText = await postChat(chatUrl, conversationForApi)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: createId(),
-          role: 'assistant',
-          content: assistantText || 'No reply from server.',
-        },
-      ])
+      await postChat(chatUrl, conversationForApi, (chunk) => {
+        setMessages((prev) => {
+          const updated = [...prev]
+          const idx = updated.findIndex((m) => m.id === assistantMessageId)
+          if (idx !== -1) {
+            updated[idx] = {
+              ...updated[idx],
+              content: updated[idx].content + chunk,
+            }
+          }
+          return updated
+        })
+      })
     } catch (error) {
-      console.error(error)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: createId(),
-          role: 'assistant',
-          content: 'Something went wrong. Check the server and try again.',
-        },
-      ])
+      console.error(error, 'error')
+      setMessages((prev) => {
+        const updated = [...prev]
+        const idx = updated.findIndex((m) => m.id === assistantMessageId)
+        if (idx !== -1 && !updated[idx].content) {
+          updated[idx] = {
+            ...updated[idx],
+            content: 'Something went wrong. Check the server and try again.',
+          }
+        }
+        return updated
+      })
     } finally {
       setIsThinking(false)
     }
